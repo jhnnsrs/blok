@@ -1,0 +1,5 @@
+data_port: 8080
+force: false
+use_bloks:
+- minio
+- data

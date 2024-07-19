@@ -1,0 +1,13 @@
+version: "3.4"
+
+services:
+  echo_service:
+    image: hashicorp/http-echo
+    command: ["-text", "Hello from HashiCorp!"]
+    ports:
+      - "5678:5678"
+  echo_service_second:
+    image: hashicorp/http-echo
+    command: ["-text", "Hello from HashiCorp!"]
+    ports:
+      - "5679:5678"

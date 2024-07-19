@@ -1,0 +1,11 @@
+services:
+   minio:
+      command:
+      - server
+      - /data
+      - /data/data
+      - /data/logs
+      image: minio/minio
+      volumes:
+      - ./mounts/data:/data/data
+      - ./mounts/logs:/data/logs

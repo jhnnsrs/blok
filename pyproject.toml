@@ -1,0 +1,84 @@
+[tool.poetry]
+name = "blok"
+version = "0.0.4"
+description = ""
+authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
+readme = "README.md"
+packages = [{ include = "blok" }]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+pyyaml = "^6.0.1"
+
+[tool.poetry.extras]
+cookiecutter = ["cookiecutter"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.3"
+pytest-asyncio = "^0.23.2"
+mypy = "^1.8.0"
+cookiecutter = "^2.5.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.mypy]
+exclude = ["venv/", "tests/", "examples/"]
+ignore_missing_imports = true
+
+[tool.ruff]
+extend-select = ["ANN", "D1"]
+extend-ignore = ["ANN101", "ANN002", "ANN003", "D100", "ANN401"]
+
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "tests",
+    "examples",
+]
+
+# Same as Black.
+line-length = 300
+
+[tool.poetry.scripts]
+blok = "blok.cli.main:cli"
+
+
+
+[[tool.pydoc-markdown.loaders]]
+type = "python"
+search_path = ["rath"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+qt_api = "pyqt5"
+markers = [
+    "integration: marks tests that require a running server",
+    "qt: marks tests that require a running qt application",
+    "public: marks tests that require a public api",
+]
+
+[tool.pydoc-markdown.renderer]
+type = "docusaurus"
+docs_base_path = "website/docs"
