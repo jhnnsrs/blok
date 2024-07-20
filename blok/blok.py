@@ -1,10 +1,12 @@
 from typing import List, runtime_checkable, Protocol
 import typing as t
-from blok.models import CLIOption, NestedDict
+from blok.models import Option, NestedDict
 from blok.service import Service
 from dataclasses import dataclass
 from blok.renderer import Renderer
+import inspect
 
+from blok.utils import check_service_compliance
 
 @dataclass
 class InitContext:
@@ -29,40 +31,144 @@ class Blok(Protocol):
     def entry(self, render: Renderer): ...
 
     def build(self, context: ExecutionContext): ...
-    def init(self, init: InitContext): ...
-    def get_options(self, name: str) -> List[CLIOption]: ...
+    def preflight(self, init: InitContext): ...
+    def get_options(self, name: str) -> List[Option]: ...
 
+
+def inspect_dependable_params(function):
+    signature = inspect.signature(function)
+    parameters = signature.parameters
+    dependencies = []
+    dependency_mapper = {
+
+    }
+
+    
+
+
+    for index, (name, param) in enumerate(parameters.items()):
+
+        if index == 0:
+            # This is the self parameter
+            continue
+
+        else:
+            # Check if the parameter is **kwargs like
+
+            cls = param.annotation
+
+            if param.annotation == InitContext:
+                dependency_mapper["__context__"] = name
+                continue
+
+            if  hasattr(cls, "get_identifier"):
+                dependencies.append(cls.get_identifier())
+                dependency_mapper[cls.get_identifier()] = name
+                continue
+
+            dependency_mapper["__kwarg__"] = name
+
+
+            
+
+    return dependencies, dependency_mapper
+
+
+def service(service_identifier: t.Union[str, Service]):
+    def decorator(cls):
+        cls.__service_identifier__ = service_identifier if isinstance(service_identifier, str) else service_identifier.get_identifier()
+        cls.__is_service__ = True
+
+        if not hasattr(cls, "get_identifier"):
+            cls.get_identifier = classmethod(lambda self: self.__service_identifier__)
+
+        return cls
+
+    return decorator
+
+
+
+def build_mapped_preflight_function(preflight_function, dependency_mapper):
+    def mapped_preflight_function(self, context):
+        kwargs = {}
+        for identifier, name in dependency_mapper.items():
+            if identifier == "__kwarg__":
+                try:
+                    kwargs[name] = context.kwargs[name]
+                except KeyError:
+                    raise ValueError(f"Missing required argument {name} in preflight function. Neither a dependency nor a context argument with the same name was found. Available arguments: {context.kwargs.keys()}")
+
+            elif identifier == "__context__":
+                kwargs[name] = context
+
+            else:
+                kwargs[name] = context.dependencies[identifier] 
+
+        preflight_function(self, **kwargs)
+
+    return mapped_preflight_function
 
 def blok(
     service_identifier: t.Union[str, Service],
-    options: t.Optional[List[CLIOption]] = None,
+    blok_name: t.Optional[str] = None,
+    options: t.Optional[List[Option]] = None,
     dependencies: t.Optional[List[str]] = None,
 ):
     def decorator(cls):
-        cls.__service_identifier__ = service_identifier if isinstance(service_identifier, str) else service_identifier.get_identifier()
-        cls.__dependencies__ = dependencies or []
-        cls.__options__ = options or []
+       
+        try:
+            cls.__service_identifier__ = service_identifier if isinstance(service_identifier, str) else service_identifier.get_identifier()
+            cls.__is_blok__ = True
+            cls.__dependencies__ = dependencies or [] # Cannot use set because we need to maintain order
+            cls.__options__ = options or []
 
-        if not hasattr(cls, "get_blok_name"):
-            cls.get_blok_name = lambda self: self.__class__.__name__.lower().replace("blok", "")
+            if not hasattr(cls, "get_blok_name"):
+                cls.get_blok_name = classmethod(lambda cls: blok_name or cls.__name__.lower().replace("blok", ""))
+            else:
+                assert isinstance(getattr(cls, "get_blok_name"), classmethod), "get_blok_name must be a class method"
 
-        if not hasattr(cls, "get_identifier"):
-            cls.get_identifier = lambda self: self.__service_identifier__
+            if not hasattr(cls, "get_identifier"):
+                cls.get_identifier =  classmethod(lambda cls: cls.__service_identifier__)
 
-        if not hasattr(cls, "get_dependencies"):
-            cls.get_dependencies = lambda self: self.__dependencies__
+            if not hasattr(cls, "preflight"):
+               cls.preflight = lambda self, context: None
+            else:
+                init_function = getattr(cls, "preflight")
+                init_dependencies, dependency_mapper = inspect_dependable_params(init_function)
+                cls.preflight = build_mapped_preflight_function(init_function, dependency_mapper)
+                for i in init_dependencies:
+                    if i not in cls.__dependencies__:
+                        cls.__dependencies__.append(i)
 
-        if not hasattr(cls, "get_options"):
-            cls.get_options = lambda self: self.__options__
 
-        if not hasattr(cls, "entry"):
-            cls.entry = lambda self, renderer: None
+            if not hasattr(cls, "get_identifier"):
+                cls.get_identifier =  classmethod(lambda cls: cls.__service_identifier__)
 
-        if not hasattr(cls, "build"):
-            cls.init = lambda self, context: None
+            if not hasattr(cls, "get_dependencies"):
+                cls.get_dependencies = lambda cls: cls.__dependencies__
 
-        if not hasattr(cls, "init"):
-            cls.init = lambda self, context: None
+            if not hasattr(cls, "get_options"):
+                cls.get_options = lambda cls: cls.__options__
+
+            if not hasattr(cls, "entry"):
+                cls.entry = lambda self, renderer: None
+
+            if not hasattr(cls, "build"):
+                cls.build = lambda self, context: None
+
+            
+            if isinstance(service_identifier, str):
+                pass    
+            elif inspect.isclass(service_identifier):
+                check_service_compliance(cls, service_identifier)
+                
+            else:
+                raise ValueError("Service must be a string or a service class")
+            
+
+        except Exception as e:
+            raise ValueError(f"Error while creating blok {cls.__name__}") from e
+
 
         return cls
 

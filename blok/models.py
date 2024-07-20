@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class CLIOption:
+class Option:
     subcommand: str
     show_default: t.Union[bool, str, None] = None
     prompt: t.Union[bool, str] = False

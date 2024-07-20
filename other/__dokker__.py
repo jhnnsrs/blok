@@ -1,5 +1,5 @@
 import click
-from blok.cli.models import service, instance, CLIOption, InitContext, BuildContext
+from blok.cli.models import service, instance, Option, InitContext, BuildContext
 from pydantic import BaseModel
 from typing import Dict, Any
 from dataclasses import dataclass, field
@@ -64,19 +64,19 @@ class EasyAdmin:
         )
 
     def get_options(self):
-        with_username = CLIOption(
+        with_username = Option(
             subcommand="username",
             help="Which admin username to use",
             default="admin",
             show_default=True,
         )
-        with_username = CLIOption(
+        with_username = Option(
             subcommand="password",
             help="Which password to use",
             default="admin",
             show_default=True,
         )
-        with_email = CLIOption(
+        with_email = Option(
             subcommand="email",
             help="Which password to use",
             default="",

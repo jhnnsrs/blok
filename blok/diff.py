@@ -4,6 +4,7 @@ two docker-compose setups
 
 """
 
+from collections.abc import Iterable
 from typing import Protocol, List
 from dataclasses import dataclass
 
@@ -62,11 +63,11 @@ def compare_structures(old_structure, new_structure, path=""):
         elif isinstance(old_value, dict) and isinstance(new_value, dict):
             diffs.extend(compare_structures(old_value, new_value, path + "/" + key))
 
-        elif isinstance(old_value, list) and isinstance(new_value, list):
+        elif isinstance(old_value, (list, tuple)) and isinstance(new_value, (list, tuple)):
             if len(old_value) != len(new_value):
                 diffs.append(
                     ListChangedDiff(
-                        path + "/" + key, f"Length mismatch len(old) != len(new)"
+                        path + "/" + key, f"Length mismatch: {len(old_value)} != {len(new_value)}"
                     )
                 )
 

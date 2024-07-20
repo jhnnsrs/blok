@@ -93,7 +93,7 @@ def initialize_blok_with_dependencies(
         }
 
         try:
-            chosen_blok.init(
+            chosen_blok.preflight(
                 InitContext(
                     dependencies=blok_dependencies,
                     kwargs=get_prepended_values(kwargs, chosen_blok.get_blok_name()),
@@ -110,7 +110,7 @@ def initialize_blok_with_dependencies(
     blok_dependencies = {key: initialied_bloks[key] for key in blok.get_dependencies()}
 
     try:
-        blok.init(
+        blok.preflight(
             InitContext(
                 dependencies=blok_dependencies,
                 kwargs=get_prepended_values(kwargs, blok.get_blok_name()),
@@ -164,6 +164,14 @@ def entrypoint(
 
         # TODO: Validate context?
 
+    # Finally build the blok
+    try:
+            blok.build(context)
+    except Exception as e:
+        raise BlokInitializationError(
+            f"Failed to initialize blok {blok.get_blok_name()} for service {key}"
+        ) from e
+
     # This would generate this are you okay?
 
     compose_dict = remove_empty_dicts(context.docker_compose)
@@ -184,6 +192,7 @@ def entrypoint(
         {
             **context.file_tree,
             "docker-compose.yml": YamlFile(**compose_dict),
+            "__blok__.yml": YamlFile(**kwargs),
         },
     )
 
@@ -197,7 +206,7 @@ def entrypoint(
 
     # Generate docker compose file
 
-    if yes or click.confirm("Do you want to generate the files?"):
+    if yes or renderer.confirm("Do you want to generate the files?"):
         os.makedirs(path, exist_ok=True)
 
         docker_compose_file_path = Path(path) / "docker-compose.yml"

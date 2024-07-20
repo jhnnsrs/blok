@@ -8,7 +8,7 @@ blok aims to autodiscover services and build them using the __blok__ magic metho
 
 """
 
-from .blok import blok, InitContext, ExecutionContext, CLIOption
+from .blok import blok, InitContext, ExecutionContext, Option
 from .service import service
 from .renderer import Renderer, Panel
 from .cli.create import create_cli
@@ -19,7 +19,7 @@ __all__ = [
     "service",
     "InitContext",
     "ExecutionContext",
-    "CLIOption",
+    "Option",
     "Renderer",
     "Panel",
     "create_cli",

@@ -1,10 +1,21 @@
-from blok import blok, InitContext, ExecutionContext, CLIOption, create_cli
+from blok import blok, ExecutionContext, Option, service
+from blok.cli import create_cli
+from typing import Protocol
 
 
-@blok("minio_service")
+@service("io.blok.minio")
+class MinioService(Protocol):
+
+    def register_bucket(self, bucket: str):
+        ...
+
+@blok(MinioService, options=[Option("port", type=int, default=9000)])
 class MinioBlok:
-    def __init__(self):
+    buckets: list[str]
+
+    def preflight(self, port: int):
         self.buckets = []
+        self.port = port
 
     def register_bucket(self, bucket: str):
         self.buckets.append(bucket)
@@ -25,23 +36,25 @@ class MinioBlok:
         context.docker_compose.set_nested("services", "minio", service)
 
 
-@blok("api_service", dependencies=["minio_service"], options=[CLIOption("port", type=int, default=8080)])
+@blok("io.blok.data", options=[Option("port", type=int, default=8080)])
 class DataBlok:
-    def __init__(self):
-        self.register_buckets: []
+    port: int
 
-    def init(self, context: InitContext):
-        self.minio_service = context.dependencies.get("minio_service")
-        self.minio_service.register_bucket("data")
-        self.minio_service.register_bucket("logs")
+
+    def preflight(self, minio: MinioBlok, port: int):
+        self.port = port
+        minio.register_bucket("data")
+        minio.register_bucket("logs")
 
     def build(self, context: ExecutionContext):
         image = {
             "image": "dependend",
-            "command": ["-port", self.port],
+            "command": ["web-service", "--port", self.port],
         }
         context.docker_compose.set_nested("services", "data", image)
 
 
 cli = create_cli(MinioBlok(), DataBlok())
-cli()
+
+if __name__ == "__main__":
+    cli()

@@ -4,8 +4,25 @@ from blok.blok import Blok
 from blok.utils import (
     check_allowed_module_string,
     check_protocol_compliance,
-    lazy_load_blok,
 )
+import importlib
+
+def lazy_load_blok(path) -> Blok:
+    # lazily loading a command, first get the module name and attribute name
+    import_path = path
+
+    blok_name = "_".join(import_path.split("."))
+    modname, cmd_object_name = import_path.rsplit(".", 1)
+    # do the import
+    mod = importlib.import_module(modname)
+    # get the Command object from that module
+    cmd_object = getattr(mod, cmd_object_name)
+    # check the result to make debugging easier
+
+    blok = cmd_object()
+    check_protocol_compliance(blok, Blok)
+
+    return blok_name, blok
 
 
 class BlokRegistry:

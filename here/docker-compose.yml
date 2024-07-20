@@ -1,4 +1,10 @@
 services:
+   data:
+      command:
+      - web-service
+      - --port
+      - 7000
+      image: dependend
    minio:
       command:
       - server

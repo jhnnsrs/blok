@@ -1,6 +1,5 @@
 import typing as t
 from blok.errors import ProtocolNotCompliantError
-from blok.blok import Blok
 import importlib
 
 
@@ -24,9 +23,7 @@ def check_protocol_compliance(instance: t.Type, protocol: t.Type) -> bool:
         for name in dir(instance)
         if getattr(instance, name, None) and not name.startswith("_")
     }
-
     missing_methods = protocol_methods - instance_methods
-
     if missing_methods:
         raise ProtocolNotCompliantError(
             f"Instance of {type(instance).__name__} does not implement "
@@ -37,23 +34,29 @@ def check_protocol_compliance(instance: t.Type, protocol: t.Type) -> bool:
 
     return True
 
+def check_service_compliance(cls: t.Type, service: t.Type) -> bool:
+    protocol_methods = {
+        name
+        for name in dir(service)
+        if getattr(service, name, None) and not name.startswith("_")
+    }
 
-def lazy_load_blok(path) -> Blok:
-    # lazily loading a command, first get the module name and attribute name
-    import_path = path
+    instance_methods = {
+        name
+        for name in dir(cls)
+        if getattr(cls, name, None) and not name.startswith("_")
+    }
+    missing_methods = protocol_methods - instance_methods
+    if missing_methods:
+        raise ProtocolNotCompliantError(
+            f"Class {cls.__name__} does not implement "
+            + f"the following methods required by {service.__name__}"
+            + ":\n\t-"
+            + "\n\t -".join(missing_methods)
+        )
 
-    blok_name = "_".join(import_path.split("."))
-    modname, cmd_object_name = import_path.rsplit(".", 1)
-    # do the import
-    mod = importlib.import_module(modname)
-    # get the Command object from that module
-    cmd_object = getattr(mod, cmd_object_name)
-    # check the result to make debugging easier
+    return True
 
-    blok = cmd_object()
-    check_protocol_compliance(blok, Blok)
-
-    return blok_name, blok
 
 
 def remove_empty_dicts(d):

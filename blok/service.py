@@ -9,11 +9,12 @@ class Service(Protocol):
 
 def service(name: str):
     def decorator(cls):
-        cls.__service_identifier__ = name
-
         if not hasattr(cls, "get_identifier"):
-            cls.get_identifier = lambda self: self.__service_identifier__
+            cls.get_identifier = classmethod(lambda self: name)
 
-        return cls
+        try:
+            return runtime_checkable(cls)
+        except TypeError as e:
+            raise TypeError(f"Could not create Blok Service from {cls}. Blok services need to inherit from 'typing.Protocol'") from e
 
-    return runtime_checkable(decorator)
+    return decorator
