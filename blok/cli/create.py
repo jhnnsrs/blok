@@ -8,26 +8,17 @@ from rich import get_console
 import typing as t
 
 
-def create_cli(*bloks, magic: bool = False, renderer: t.Optional[Renderer] = None):
-    if not magic:
-        reg = BlokRegistry(strict=True)
-    else:
-        reg = MagicRegistry("__blok__")
 
-    for blok in bloks:
-        reg.add_blok(blok)
-
-    renderer = renderer or RichRenderer(get_console())
-
-    build = build_cli(reg, renderer)
+def make_cli(registry: BlokRegistry, renderer: Renderer):
+    build = build_cli(registry, renderer)
 
     @click.command()
     def inspect():
         """Inspect the bloks available in the python environment"""
 
         click.echo("Available bloks:")
-        for blok in magic.bloks.values():
-            click.echo(blok.get_blok_name())
+        for blok in registry.bloks.values():
+            click.echo(blok.get_blok_name() + "\t\t\t"  +blok.get_identifier())
 
     @click.group()
     @click.pass_context
@@ -45,3 +36,17 @@ def create_cli(*bloks, magic: bool = False, renderer: t.Optional[Renderer] = Non
     cli.add_command(inspect, "inspect")
 
     return cli
+
+
+def create_cli(*bloks, magic: bool = False, renderer: t.Optional[Renderer] = None):
+    if not magic:
+        reg = BlokRegistry(strict=True)
+    else:
+        reg = MagicRegistry("__blok__")
+
+    for blok in bloks:
+        reg.add_blok(blok)
+
+    renderer = renderer or RichRenderer(get_console())
+
+    return make_cli(reg, renderer)

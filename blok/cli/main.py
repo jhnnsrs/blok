@@ -1,4 +1,4 @@
-from blok.cli.builder import build_cli
+from blok.cli.create import make_cli
 from blok.cli.magic_registry import MagicRegistry
 from blok.renderers.click import RichRenderer
 from rich import get_console
@@ -37,30 +37,5 @@ click.rich_click.ERRORS_EPILOGUE = ERROR_EPILOGUE
 click.rich_click.USE_RICH_MARKUP = True
 
 
-build = build_cli(magic, renderer)
+cli = make_cli(magic, renderer)
 
-
-@click.command()
-def inspect():
-    """Inspect the bloks available in the python environment"""
-
-    click.echo("Available bloks:")
-    for blok in magic.bloks.values():
-        click.echo(blok.get_blok_name())
-
-
-@click.group()
-@click.pass_context
-def cli(ctx):
-    """Welcome to blok! A tool for building and managing docker-compose projects.
-
-    Blok utilized your locally installed projects to build and manage docker-compose projects.
-    Projects can register bloks into the blok registry using the __blok__ magic method.
-    For more information, visit [link=https://arkitekt.live/bloks]https://arkitekt_next.live/bloks[/link]
-    """
-
-    pass
-
-
-cli.add_command(build, "build")
-cli.add_command(inspect, "inspect")

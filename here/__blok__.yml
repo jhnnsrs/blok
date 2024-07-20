@@ -1,6 +1,0 @@
-data_port: 7000
-force: false
-minio_port: 9000
-use_bloks:
-- minio
-- data
