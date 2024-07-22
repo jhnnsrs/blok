@@ -37,7 +37,7 @@ class Repo:
     def __str__(self):
         return str(self.value)
 
-    def diff(self, other: "YamlFile", path: str) -> List[str]:
+    def diff(self, other: "Repo", path: str) -> List[str]:
         if self.value != other.value:
             return [ChangedDiff(path, self.value, self.value)]
         return []

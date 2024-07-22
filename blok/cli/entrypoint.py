@@ -1,4 +1,5 @@
 from pathlib import Path
+import traceback
 from rich import get_console
 import yaml
 from blok.diff import compare_structures
@@ -12,7 +13,7 @@ from blok.errors import (
     BlokInitializationError,
 )
 from blok.tree.models import YamlFile
-from blok.utils import get_prepended_values, remove_empty_dicts
+from blok.utils import get_cleartext_deps, get_prepended_values, remove_empty_dicts
 from blok.models import NestedDict
 from blok.blok import ExecutionContext, InitContext
 import rich_click as click
@@ -85,11 +86,11 @@ def initialize_blok_with_dependencies(
 
         initialied_bloks[service_name] = chosen_blok
 
-        for dependency in chosen_blok.get_dependencies():
+        for dependency in get_cleartext_deps(chosen_blok):
             initialize_service_as_blok_recursive(dependency, chosen_blok)
 
         blok_dependencies = {
-            key: initialied_bloks[key] for key in chosen_blok.get_dependencies()
+            key: initialied_bloks[key] for key in get_cleartext_deps(chosen_blok)
         }
 
         try:
@@ -104,10 +105,10 @@ def initialize_blok_with_dependencies(
                 f"Failed to initialize blok {chosen_blok.get_blok_name()}"
             ) from e
 
-    for blok_key in blok.get_dependencies():
+    for blok_key in get_cleartext_deps(blok):
         initialize_service_as_blok_recursive(blok_key, blok)
 
-    blok_dependencies = {key: initialied_bloks[key] for key in blok.get_dependencies()}
+    blok_dependencies = {key: initialied_bloks[key] for key in get_cleartext_deps(blok)}
 
     try:
         blok.preflight(
@@ -127,99 +128,104 @@ def initialize_blok_with_dependencies(
 def entrypoint(
     registry: BlokRegistry, renderer: Renderer, blok_file_name: str, **kwargs
 ):
-    console = get_console()
-    path = kwargs.pop("path")
-    blok_name = kwargs.pop("blok")
-    yes = kwargs.pop("yes", False)
+    try:
+        console = get_console()
+        path = kwargs.pop("path")
+        blok_name = kwargs.pop("blok")
+        yes = kwargs.pop("yes", False)
 
-    dry = kwargs.pop("dry", False)
+        dry = kwargs.pop("dry", False)
 
-    discard_bloks = kwargs.pop("discard_bloks", None)
-    prefer_bloks = kwargs.pop("prefer_bloks", None)
+        discard_bloks = kwargs.pop("discard_bloks", None)
+        prefer_bloks = kwargs.pop("prefer_bloks", None)
 
-    blok = registry.get_blok(blok_name)
-    blok.entry(renderer)
+        blok = registry.get_blok(blok_name)
+        blok.entry(renderer)
 
-    initialized = initialize_blok_with_dependencies(
-        blok, registry, discard_bloks, prefer_bloks, kwargs
-    )
+        initialized = initialize_blok_with_dependencies(
+            blok, registry, discard_bloks, prefer_bloks, kwargs
+        )
 
-    pane = create_dependency_resolutions_pane(initialized)
-    console.print(pane)
+        pane = create_dependency_resolutions_pane(initialized)
+        console.print(pane)
 
-    files = {}
+        files = {}
 
-    context = ExecutionContext(
-        docker_compose=NestedDict({"services": {}, "networks": {}}),
-        file_tree=NestedDict(files),
-    )
+        context = ExecutionContext(
+            docker_compose=NestedDict({"services": {}, "networks": {}}),
+            file_tree=NestedDict(files),
+        )
 
-    for key, service in initialized.items():
+        for key, service in initialized.items():
+            try:
+                service.build(context)
+            except Exception as e:
+                raise BlokInitializationError(
+                    f"Failed to initialize blok {blok.get_blok_name()} for service {key}"
+                ) from e
+
+            # TODO: Validate context?
+
+        # Finally build the blok
         try:
-            service.build(context)
+            blok.build(context)
         except Exception as e:
             raise BlokInitializationError(
                 f"Failed to initialize blok {blok.get_blok_name()} for service {key}"
             ) from e
 
-        # TODO: Validate context?
+        # This would generate this are you okay?
 
-    # Finally build the blok
-    try:
-            blok.build(context)
+        compose_dict = remove_empty_dicts(context.docker_compose)
+
+        print_all = False
+
+        if print_all:
+            tree = construct_file_tree("DockerCompose", compose_dict)
+            get_console().print(tree)
+
+            tree = construct_file_tree("Files", context.file_tree)
+            get_console().print(tree)
+
+        old_files = create_structure_from_files_and_folders(path)
+
+        diffs = compare_structures(
+            old_files,
+            {
+                **context.file_tree,
+                "docker-compose.yml": YamlFile(**compose_dict),
+                "__blok__.yml": YamlFile(**kwargs),
+            },
+        )
+
+        if not diffs:
+            get_console().print("No differences found")
+            get_console().print("Exiting")
+
+        else:
+            tree = construct_diff_tree(diffs)
+            get_console().print(tree)
+
+        # Generate docker compose file
+
+        if yes or renderer.confirm("Do you want to generate the files?"):
+            os.makedirs(path, exist_ok=True)
+
+            docker_compose_file_path = Path(path) / "docker-compose.yml"
+
+            with open(docker_compose_file_path, "w") as f:
+                yaml.dump(compose_dict, f, yaml.SafeDumper, indent=3)
+
+            print(f"Generated docker-compose file at {docker_compose_file_path}")
+
+            # Generate file tree
+
+            # Generate files and folders
+            create_files_and_folders(Path(path), context.file_tree)
+
+            with open(Path(path) / blok_file_name, "w") as f:
+                yaml.dump(kwargs, f, yaml.SafeDumper)
+
     except Exception as e:
-        raise BlokInitializationError(
-            f"Failed to initialize blok {blok.get_blok_name()} for service {key}"
-        ) from e
-
-    # This would generate this are you okay?
-
-    compose_dict = remove_empty_dicts(context.docker_compose)
-
-    print_all = False
-
-    if print_all:
-        tree = construct_file_tree("DockerCompose", compose_dict)
-        get_console().print(tree)
-
-        tree = construct_file_tree("Files", context.file_tree)
-        get_console().print(tree)
-
-    old_files = create_structure_from_files_and_folders(path)
-
-    diffs = compare_structures(
-        old_files,
-        {
-            **context.file_tree,
-            "docker-compose.yml": YamlFile(**compose_dict),
-            "__blok__.yml": YamlFile(**kwargs),
-        },
-    )
-
-    if not diffs:
-        get_console().print("No differences found")
-        get_console().print("Exiting")
-
-    else:
-        tree = construct_diff_tree(diffs)
-        get_console().print(tree)
-
-    # Generate docker compose file
-
-    if yes or renderer.confirm("Do you want to generate the files?"):
-        os.makedirs(path, exist_ok=True)
-
-        docker_compose_file_path = Path(path) / "docker-compose.yml"
-
-        with open(docker_compose_file_path, "w") as f:
-            yaml.dump(compose_dict, f, yaml.SafeDumper, indent=3)
-
-        print(f"Generated docker-compose file at {docker_compose_file_path}")
-
-        # Generate file tree
-
-        # Generate files and folders
-        create_files_and_folders(Path(path), context.file_tree)
-
-        with open(Path(path) / blok_file_name, "w") as f:
-            yaml.dump(kwargs, f, yaml.SafeDumper)
+        print(traceback.format_exc())
+        raise click.ClickException(str(e)) from e

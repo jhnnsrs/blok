@@ -34,6 +34,7 @@ def check_protocol_compliance(instance: t.Type, protocol: t.Type) -> bool:
 
     return True
 
+
 def check_service_compliance(cls: t.Type, service: t.Type) -> bool:
     protocol_methods = {
         name
@@ -56,7 +57,6 @@ def check_service_compliance(cls: t.Type, service: t.Type) -> bool:
         )
 
     return True
-
 
 
 def remove_empty_dicts(d):
@@ -83,3 +83,20 @@ def get_prepended_values(kwargs: t.Dict[str, t.Any], blok_name: str):
     }
 
     return prepended
+
+
+def get_cleartext_deps(blok):
+    dependencies = blok.get_dependencies()
+    cleartext_deps = []
+
+    for dep in dependencies:
+        if hasattr(dep, "get_identifier"):
+            print("Dep is a service/blok class", dep)
+            cleartext_deps.append(dep.get_identifier())
+        else:
+            assert isinstance(
+                dep, str
+            ), "Dependency must be a string or a service/blok class"
+            cleartext_deps.append(dep)
+
+    return cleartext_deps

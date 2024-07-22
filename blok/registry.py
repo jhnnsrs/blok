@@ -7,7 +7,8 @@ from blok.utils import (
 )
 import importlib
 
-def lazy_load_blok(path) -> Blok:
+
+def lazy_load_blok(path) -> t.Tuple[str, Blok]:
     # lazily loading a command, first get the module name and attribute name
     import_path = path
 
@@ -50,8 +51,8 @@ class BlokRegistry:
         return [self.get_blok(blok_key) for blok_key in blok_keys]
 
     def load_module(self, module: str, with_key: t.Optional[str] = None):
-        key, service = lazy_load_blok(module)
-        self.add_blok(with_key or key, service)
+        key, blok = lazy_load_blok(module)
+        self.add_blok(with_key or key, blok)
 
     def add_blok(self, blok: Blok):
         check_protocol_compliance(blok, Blok)
@@ -80,7 +81,6 @@ class BlokRegistry:
                 params = asdict(option)
 
                 subcommand = params.pop("subcommand")
-                show_default = params.pop("show_default", False)
                 assert subcommand, "subcommand is required"
                 assert check_allowed_module_string(
                     subcommand
@@ -89,7 +89,6 @@ class BlokRegistry:
                 integrated_option = click.option(
                     f"--{blok_key.replace('_', '-')}-{subcommand.replace('_', '-')}",
                     envvar=f"{blok_key.upper()}_{subcommand.upper()}",
-                    show_default=True,
                     **params,
                 )
 
