@@ -17,8 +17,6 @@ def create_files_and_folders(base_path, structure, git_command: str = "git"):
             # Create directory and clone repo
             current_path.mkdir(parents=True, exist_ok=True)
             subprocess.run(f"{git_command} clone {value} {current_path}", shell=True)
-            with open(current_path / "__repo__.txt", "w") as file:
-                file.write(str(value))
             # TODO: Clone repo
 
         elif isinstance(value, dict):

@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from blok.tree.models import YamlFile, Repo
 import yaml
+import subprocess
 
 
 def create_structure_from_files_and_folders(base_path, omit: list[str] | None = None):
@@ -9,11 +10,30 @@ def create_structure_from_files_and_folders(base_path, omit: list[str] | None = 
         omit = []
     structure = {}
 
+    def get_repo_url(repo_path):
+        try:
+            result = subprocess.run(
+                ["git", "-C", repo_path, "config", "--get", "remote.origin.url"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            return result.stdout.strip()
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to get repo URL for {repo_path}: {e}")
+            return None
+
     def process_directory(current_path, current_dict):
         for root, dirs, files in os.walk(current_path):
             rel_path = Path(root).relative_to(base_path)
-            if ".git" in files:
-                # Skip this directory as it contains a git repository
+            if ".git" in dirs:
+                # Handle git repository
+                repo_url = get_repo_url(root)
+                if repo_url:
+                    temp_dict = current_dict
+                    for part in rel_path.parts:
+                        temp_dict = temp_dict.setdefault(part, {})
+                    temp_dict[".git"] = Repo(value=repo_url)
                 continue
 
             # Update current_dict to point to the correct level in the structure
@@ -26,9 +46,6 @@ def create_structure_from_files_and_folders(base_path, omit: list[str] | None = 
 
             for file_name in files:
                 if omit and file_name in omit:
-                    continue
-
-                if file_name == "__repo__.txt":
                     continue
 
                 file_path = Path(root) / file_name

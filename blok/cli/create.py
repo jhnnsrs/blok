@@ -8,7 +8,6 @@ from rich import get_console
 import typing as t
 
 
-
 def make_cli(registry: BlokRegistry, renderer: Renderer):
     build = build_cli(registry, renderer)
 
@@ -18,7 +17,7 @@ def make_cli(registry: BlokRegistry, renderer: Renderer):
 
         click.echo("Available bloks:")
         for blok in registry.bloks.values():
-            click.echo(blok.get_blok_name() + "\t\t\t"  +blok.get_identifier())
+            click.echo(blok.get_blok_name() + "\t\t\t" + blok.get_identifier())
 
     @click.group()
     @click.pass_context
