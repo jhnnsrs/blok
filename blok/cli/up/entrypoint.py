@@ -49,13 +49,17 @@ def entrypoint(
     blok_file_name: str,
     **kwargs,
 ):
-    renderer.render(
-        Panel("Lets up this project", title="Welcome to Blok!", style="bold magenta")
-    )
-
     path = Path(kwargs.pop("path"))
     yes = kwargs.pop("yes", False)
     select = kwargs.pop("select", [])
+    nd = kwargs.pop("no_docker", False)
+
+    if nd:
+        if not select:
+            raise click.ClickException("No up commands selected and no-docker flag set")
+    renderer.render(
+        Panel("Lets up this project", title="Welcome to Blok!", style="bold magenta")
+    )
 
     up_commands = ctx.obj.get("up_commands", {})
 
@@ -71,6 +75,19 @@ def entrypoint(
 
     else:
         selected_commands = list(up_commands.values())
+
+    leading_command = None
+
+    if nd:
+        if not select:
+            raise click.ClickException(
+                "No up commands selected and no-docker flag set. If setting -nd flag, please select up commands via -s flag"
+            )
+        leading_command = selected_commands.pop(0)
+    else:
+        leading_command = {"command": ["docker", "compose", "up"], "cwd": "."}
+
+    print("Running leading command", leading_command["command"])
 
     if selected_commands:
         if yes or renderer.confirm(
@@ -97,7 +114,8 @@ def entrypoint(
             print(f"Started subprocess {command['command']} with PID: {p.pid}")
 
     try:
-        subprocess.run("docker compose up", shell=True, cwd=path)
+        rel_path = secure_path_combine(path, Path(leading_command["cwd"]))
+        subprocess.run(" ".join(leading_command["command"]), shell=True, cwd=rel_path)
     except subprocess.CalledProcessError as e:
         print(f"Error running docker-compose up: {e}")
         terminate_all_subprocesses()

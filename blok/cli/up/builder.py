@@ -64,6 +64,13 @@ def wrap_builder(
         default=lambda: list(),
         multiple=True,
     )(func)
+    func = click.option(
+        "--no-docker",
+        "-nd",
+        type=bool,
+        default=False,
+        is_flag=True,
+    )(func)
 
     func = click.command()(func)
 
