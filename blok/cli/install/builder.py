@@ -5,13 +5,14 @@ from pathlib import Path
 import yaml
 from functools import partial
 import os
-from blok.cli.entrypoint import entrypoint
+from blok.cli.install.entrypoint import entrypoint
 from blok.renderer import Renderer
 
 
 def configure(config_file_name: str, ctx, param, filename):
     """Configures the context with the default map"""
     config_path = Path(filename) / config_file_name
+    print(config_path)
 
     try:
         with open(config_path, "r") as f:
@@ -21,7 +22,7 @@ def configure(config_file_name: str, ctx, param, filename):
         ctx.default_map = cfg.get("config")
         ctx.obj = cfg
     except FileNotFoundError:
-        pass
+        raise click.ClickException("No blok configuration file found")
 
     return filename
 
@@ -45,38 +46,6 @@ def wrap_builder(
         return builder_func(blok_registry, renderer, config_file_name, *args, **kwargs)
 
     func = wrapped_builder
-    func = click.option(
-        "--dry",
-        "-dry",
-        is_flag=True,
-        default=False,
-    )(func)
-    func = click.option(
-        "--use-bloks",
-        "-b",
-        type=click.Choice(blok_registry.bloks.keys()),
-        multiple=True,
-        default=list(blok_registry.bloks.keys()),
-        help="Bloks to use",
-    )(func)
-    func = click.option(
-        "--discard_bloks",
-        "-d",
-        type=click.Choice(blok_registry.bloks.keys()),
-        multiple=True,
-        default=[],
-        help="Bloks to discard in the build",
-    )(func)
-    func = click.option(
-        "--force",
-        "-f",
-        is_flag=True,
-        default=False,
-        callback=reconfigure,
-    )(func)
-
-    for option in blok_registry.get_click_options():
-        func = option(func)
 
     func = click.argument(
         "path",
@@ -84,19 +53,18 @@ def wrap_builder(
         default=lambda: Path(os.getcwd()),
         callback=partial(configure, config_file_name),
     )(func)
-    func = click.argument("blok", type=click.Choice(blok_registry.bloks.keys()))(func)
-    func = click.option(
-        "--force",
-        "-f",
-        is_flag=True,
-        default=False,
-        callback=reconfigure,
-    )(func)
     func = click.option(
         "--yes",
         "-y",
         is_flag=True,
         default=False,
+    )(func)
+    func = click.option(
+        "--select",
+        "-s",
+        type=str,
+        default=lambda: list(),
+        multiple=True,
     )(func)
 
     func = click.command()(func)
@@ -104,7 +72,7 @@ def wrap_builder(
     return func
 
 
-def build_cli(
+def build_install_cli(
     blok_registry: BlokRegistry,
     renderer: Renderer,
     config_file_name: str = "__blok__.yml",

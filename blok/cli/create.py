@@ -1,3 +1,5 @@
+from blok.cli.install.builder import build_install_cli
+from blok.cli.up.builder import build_up_cli
 from .builder import build_cli
 from blok.registry import BlokRegistry
 from blok.cli.magic_registry import MagicRegistry
@@ -10,6 +12,8 @@ import typing as t
 
 def make_cli(registry: BlokRegistry, renderer: Renderer):
     build = build_cli(registry, renderer)
+    install = build_install_cli(registry, renderer)
+    up = build_up_cli(registry, renderer)
 
     @click.command()
     def inspect():
@@ -33,7 +37,8 @@ def make_cli(registry: BlokRegistry, renderer: Renderer):
 
     cli.add_command(build, "build")
     cli.add_command(inspect, "inspect")
-
+    cli.add_command(install, "install")
+    cli.add_command(up, "up")
     return cli
 
 

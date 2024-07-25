@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from pathlib import Path
 import traceback
 from rich import get_console
@@ -15,7 +16,7 @@ from blok.errors import (
 from blok.tree.models import YamlFile
 from blok.utils import get_cleartext_deps, get_prepended_values, remove_empty_dicts
 from blok.models import NestedDict
-from blok.blok import ExecutionContext, InitContext
+from blok.blok import Command, ExecutionContext, InitContext
 import rich_click as click
 from rich.tree import Tree
 from blok.render.tree import construct_file_tree, construct_diff_tree
@@ -25,6 +26,7 @@ from blok.blok import Blok
 from typing import List, Optional
 from collections import OrderedDict
 from blok.renderer import Renderer
+import subprocess
 
 
 def filter_bloks(
@@ -41,6 +43,15 @@ def filter_bloks(
             bloks = prefered_blok
 
     return bloks
+
+
+def traverse_command_tree(nested: NestedDict):
+    for key, value in nested.items():
+        if isinstance(value, NestedDict):
+            yield from traverse_command_tree(value)
+        else:
+            assert isinstance(value, Command), f"Expected Command but got {value}"
+            yield key, asdict(value)
 
 
 def initialize_blok_with_dependencies(
@@ -154,6 +165,8 @@ def entrypoint(
         context = ExecutionContext(
             docker_compose=NestedDict({"services": {}, "networks": {}}),
             file_tree=NestedDict(files),
+            install_commands=NestedDict(),
+            up_commands=NestedDict(),
         )
 
         for key, service in initialized.items():
@@ -189,12 +202,22 @@ def entrypoint(
 
         old_files = create_structure_from_files_and_folders(path)
 
+        new_yaml_body = {
+            "config": kwargs,
+            "resolved_blocks": {
+                key: value.get_blok_name() for key, value in initialized.items()
+            },
+            "initialized_order": list(i.get_blok_name() for i in initialized.values()),
+            "install_commands": dict(traverse_command_tree(context.install_commands)),
+            "up_commands": dict(traverse_command_tree(context.up_commands)),
+        }
+
         diffs = compare_structures(
             old_files,
             {
                 **context.file_tree,
                 "docker-compose.yml": YamlFile(**compose_dict),
-                "__blok__.yml": YamlFile(**kwargs),
+                "__blok__.yml": YamlFile(**new_yaml_body),
             },
         )
 
@@ -223,8 +246,12 @@ def entrypoint(
             # Generate files and folders
             create_files_and_folders(Path(path), context.file_tree)
 
-            with open(Path(path) / blok_file_name, "w") as f:
-                yaml.dump(kwargs, f, yaml.SafeDumper)
+        with open(Path(path) / blok_file_name, "w") as f:
+            yaml.dump(
+                new_yaml_body,
+                f,
+                yaml.SafeDumper,
+            )
 
     except Exception as e:
         print(traceback.format_exc())

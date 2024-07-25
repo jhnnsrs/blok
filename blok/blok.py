@@ -33,9 +33,18 @@ class InitContext:
 
 
 @dataclass
+class Command:
+    command: List[str]
+    help: str = "The command to run"
+    cwd: str = "The directory to run the command in"
+
+
+@dataclass
 class ExecutionContext:
     docker_compose: NestedDict
     file_tree: NestedDict
+    install_commands: NestedDict
+    up_commands: NestedDict
 
 
 @runtime_checkable
@@ -49,6 +58,7 @@ class Blok(Protocol):
     def entry(self, render: Renderer): ...
 
     def build(self, context: ExecutionContext): ...
+
     def preflight(self, init: InitContext): ...
     def get_options(self, name: str) -> List[Option]: ...
 
