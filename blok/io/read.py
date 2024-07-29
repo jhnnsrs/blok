@@ -1,6 +1,7 @@
+import json
 import os
 from pathlib import Path
-from blok.tree.models import YamlFile, Repo
+from blok.tree.models import JSONFile, YamlFile, Repo
 import yaml
 import subprocess
 
@@ -58,6 +59,10 @@ def create_structure_from_files_and_folders(base_path, omit: list[str] | None = 
                         content_decoded = content.decode()
                         yaml_content = yaml.safe_load(content_decoded)
                         temp_dict[file_name] = YamlFile(**yaml_content)
+                    elif file_name.endswith(".json"):
+                        content_decoded = content.decode()
+                        json_content = json.loads(content_decoded)
+                        temp_dict[file_name] = JSONFile(**json_content)
                     else:
                         try:
                             content_decoded = content.decode()

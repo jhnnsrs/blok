@@ -1,7 +1,8 @@
 import os
 from pathlib import Path
-from blok.tree.models import YamlFile, Repo
+from blok.tree.models import JSONFile, YamlFile, Repo
 import yaml
+import json
 import subprocess
 
 
@@ -12,6 +13,11 @@ def create_files_and_folders(base_path, structure, git_command: str = "git"):
             # Create file and write yaml
             with current_path.open("w") as file:
                 yaml.dump(value.values, file, yaml.SafeDumper)
+
+        elif isinstance(value, JSONFile):
+            # Create file and write yaml
+            with current_path.open("w") as file:
+                json.dump(value.values, file, indent=2)
 
         elif isinstance(value, Repo):
             # Create directory and clone repo

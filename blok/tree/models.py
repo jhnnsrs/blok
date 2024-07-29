@@ -23,6 +23,25 @@ class YamlFile:
         return False
 
 
+class JSONFile:
+    """Represents a yaml file"""
+
+    def __init__(self, **values):
+        self.values = values
+
+    def __str__(self):
+        return str(self.values)
+
+    def diff(self, other: "YamlFile", path: str) -> List[str]:
+        return compare_structures(self.values, other.values, path)
+
+    @classmethod
+    def is_representable_as(cls, path: Path):
+        if path.suffix in [".json", ".json"]:
+            return True
+        return False
+
+
 class Repo:
     """Represents a repository
 
