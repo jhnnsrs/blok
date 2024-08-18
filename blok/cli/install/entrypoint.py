@@ -71,7 +71,6 @@ def entrypoint(
     selected_commands = []
 
     if select:
-        print("Selecting commands")
         for key in select:
             if key in install_commands:
                 selected_commands.append(install_commands[key])

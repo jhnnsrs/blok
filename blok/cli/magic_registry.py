@@ -9,7 +9,9 @@ import typing as t
 
 def load_and_call_get_blocks(module_name, rekuest_path, magic_path):
     try:
-        spec = importlib.util.spec_from_file_location(f"{module_name}.{magic_path}", rekuest_path)
+        spec = importlib.util.spec_from_file_location(
+            f"{module_name}.{magic_path}", rekuest_path
+        )
         rekuest_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(rekuest_module)
         if hasattr(rekuest_module, "get_bloks"):
@@ -32,19 +34,27 @@ def check_and_import_magic(magic_path: str):
     current_directory = os.getcwd()
     for item in os.listdir(current_directory):
         item_path = os.path.join(current_directory, item)
-        if os.path.isdir(item_path) and os.path.isfile(os.path.join(item_path, "__init__.py")):
+        if os.path.isdir(item_path) and os.path.isfile(
+            os.path.join(item_path, "__init__.py")
+        ):
             rekuest_path = os.path.join(item_path, f"{magic_path}.py")
             if os.path.isfile(rekuest_path):
-                registered_bloks.extend(load_and_call_get_blocks(item, rekuest_path, magic_path))
+                registered_bloks.extend(
+                    load_and_call_get_blocks(item, rekuest_path, magic_path)
+                )
 
     # Check installed packages
     for _, module_name, _ in pkgutil.iter_modules():
         try:
             module_spec = importlib.util.find_spec(module_name)
             if module_spec and module_spec.origin:
-                rekuest_path = os.path.join(os.path.dirname(module_spec.origin), f"{magic_path}.py")
+                rekuest_path = os.path.join(
+                    os.path.dirname(module_spec.origin), f"{magic_path}.py"
+                )
                 if os.path.isfile(rekuest_path):
-                    registered_bloks.extend(load_and_call_get_blocks(module_name, rekuest_path, magic_path))
+                    registered_bloks.extend(
+                        load_and_call_get_blocks(module_name, rekuest_path, magic_path)
+                    )
 
         except Exception as e:
             print(f"Failed to call get_bloks for installed package {module_name}: {e}")

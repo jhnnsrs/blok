@@ -26,3 +26,6 @@ class RichRenderer(Renderer):
 
     def ask(self, question: str) -> str:
         return click.prompt(question)
+    
+    def print(self, *args, **kwargs) -> None:
+        self.console.print(*args, **kwargs)

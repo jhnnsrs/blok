@@ -38,4 +38,3 @@ click.rich_click.USE_RICH_MARKUP = True
 
 
 cli = make_cli(magic, renderer)
-

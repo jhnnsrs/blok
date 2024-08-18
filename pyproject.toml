@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "blok"
-version = "0.0.14"
+version = "0.0.18"
 description = ""
 authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
 readme = "README.md"
@@ -9,9 +9,14 @@ packages = [{ include = "blok" }]
 [tool.poetry.dependencies]
 python = "^3.9"
 pyyaml = "^6.0.1"
+inquirer = "^3.3.0"
+netifaces = { version = ">=0.11.0", python = "^3.8", optional = true }
+cryptography = { version = ">=40.0.8", python = "^3.8", optional = true }
+namegenerator = { version = ">=1.0.6", python = "^3.8", optional = true }
 
 [tool.poetry.extras]
 cookiecutter = ["cookiecutter"]
+all = ["netifaces", "cryptography", "namegenerator"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"

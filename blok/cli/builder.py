@@ -52,6 +52,12 @@ def wrap_builder(
         default=False,
     )(func)
     func = click.option(
+        "--run",
+        "-r",
+        default=False,
+        required=False,
+    )(func)
+    func = click.option(
         "--use-bloks",
         "-b",
         type=click.Choice(blok_registry.bloks.keys()),
@@ -66,6 +72,15 @@ def wrap_builder(
         multiple=True,
         default=[],
         help="Bloks to discard in the build",
+    )(func)
+    func = click.option(
+        "--with-optionals",
+        "-o",
+        type=click.Choice(blok_registry.dependency_resolver.keys()),
+        multiple=True,
+        default=None,
+        required=False,
+        help="Optional services to include",
     )(func)
     func = click.option(
         "--force",

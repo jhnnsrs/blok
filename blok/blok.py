@@ -1,10 +1,11 @@
-from typing import List, runtime_checkable, Protocol
+from typing import List, get_origin, runtime_checkable, Protocol
 import typing as t
 from blok.models import Option, NestedDict
 from blok.service import Service
 from dataclasses import dataclass
 from blok.renderer import Renderer
 import inspect
+from typing import Optional, get_args, Union
 
 from blok.utils import check_service_compliance
 
@@ -19,8 +20,10 @@ class InitContext:
 
     def get_service(self, identifier: t.Type[T]) -> "T":
         try:
-            if hasattr(identifier, "get_identifier"):
-                return self.dependencies[identifier.get_identifier()]
+            if hasattr(identifier, "get_blok_meta"):
+                return self.dependencies[identifier.get_blok_meta().service_identifier]
+            elif hasattr(identifier, "get_blok_service_meta"):
+                return self.dependencies[identifier.get_blok_service_meta().identifier]
             else:
                 assert isinstance(
                     identifier, str
@@ -28,7 +31,7 @@ class InitContext:
                 return self.dependencies[identifier]
         except KeyError:
             raise ValueError(
-                f"Service with identifier {identifier} not found in dependencies"
+                f"Service with identifier {identifier} not found in dependencies {list(self.dependencies.keys())}"
             )
 
 
@@ -47,20 +50,42 @@ class ExecutionContext:
     up_commands: NestedDict
 
 
+@dataclass
+class Dependency:
+    service: str
+    optional: bool = False
+    description: Optional[str] = None
+
+
+@dataclass
+class BlokMeta:
+    name: str
+    description: str
+    service_identifier: str
+    tags: List[str]
+    dependencies: List[Dependency]
+
+
 @runtime_checkable
 class Blok(Protocol):
-    def get_blok_name(self) -> str: ...
-
-    def get_identifier(self) -> str: ...
-
-    def get_dependencies(self) -> List[str]: ...
+    def get_blok_meta(self) -> BlokMeta: ...
 
     def entry(self, render: Renderer): ...
 
     def build(self, context: ExecutionContext): ...
 
     def preflight(self, init: InitContext): ...
+
     def get_options(self, name: str) -> List[Option]: ...
+
+
+def is_optional_type(annotation):
+    """Check if a type is Optional[X], which is a Union[X, None]."""
+    try:
+        return type(None) in get_args(annotation)
+    except TypeError:
+        return False
+
 
 
 def inspect_dependable_params(function):
@@ -77,15 +102,26 @@ def inspect_dependable_params(function):
         else:
             # Check if the parameter is **kwargs like
 
-            cls = param.annotation
-
             if param.annotation == InitContext:
                 dependency_mapper["__context__"] = name
                 continue
+                
+            if is_optional_type(param.annotation):
+                cls = next(i for i in get_args(param.annotation) if i != type(None))
+                is_optional = True
+            else:
+                cls = param.annotation
+                is_optional = False
 
-            if hasattr(cls, "get_identifier"):
-                dependencies.append(cls.get_identifier())
-                dependency_mapper[cls.get_identifier()] = name
+
+            if hasattr(cls, "get_blok_service_meta"):
+                dependencies.append(Dependency(service=cls.get_blok_service_meta().identifier, optional=is_optional))
+                dependency_mapper[cls.get_blok_service_meta().identifier] = name
+                continue
+
+            if hasattr(cls, "get_blok_meta"):
+                dependencies.append(Dependency(service=cls.get_blok_meta().service_identifier, optional=is_optional))
+                dependency_mapper[cls.get_blok_meta().service_identifier] = name
                 continue
 
             dependency_mapper["__kwarg__" + str(index)] = name
@@ -110,6 +146,7 @@ def service(service_identifier: t.Union[str, Service]):
     return decorator
 
 
+
 def build_mapped_preflight_function(preflight_function, dependency_mapper):
     def mapped_preflight_function(self, context):
         kwargs = {}
@@ -126,8 +163,7 @@ def build_mapped_preflight_function(preflight_function, dependency_mapper):
                 kwargs[name] = context
 
             else:
-                kwargs[name] = context.dependencies[identifier]
-
+                kwargs[name] = context.dependencies.get(identifier, None)
         try:
             preflight_function(self, **kwargs)
         except TypeError as e:
@@ -140,36 +176,43 @@ def build_mapped_preflight_function(preflight_function, dependency_mapper):
     return mapped_preflight_function
 
 
+def convert_to_dependency(dependency):
+    if isinstance(dependency, str):
+        return Dependency(service=dependency)
+    elif isinstance(dependency, Dependency):
+        return dependency
+    else:
+        raise ValueError("Dependency must be a string or a Dependency object")
+
 def blok(
     service_identifier: t.Union[str, Service],
     blok_name: t.Optional[str] = None,
     options: t.Optional[List[Option]] = None,
-    dependencies: t.Optional[List[str]] = None,
+    dependencies: t.Optional[List[t.Union[str, Dependency]]] = None,
+    tags: t.Optional[List[str]] = None,
+    description=None,
 ):
     def decorator(cls):
-        try:
-            cls.__service_identifier__ = (
+        initial_blok_meta = BlokMeta(
+            name=blok_name or cls.__name__.lower().replace("blok", ""),
+            description=description or "",
+            service_identifier=(
                 service_identifier
                 if isinstance(service_identifier, str)
-                else service_identifier.get_identifier()
-            )
+                else service_identifier.get_blok_service_meta().identifier
+            ),
+            tags=tags or [],
+            dependencies=[convert_to_dependency(i) for i in dependencies] if dependencies else [],
+        )
+
+        try:
+            cls.__blok_meta__ = initial_blok_meta
+            cls.__blok_options__ = options or []
             cls.__is_blok__ = True
-            cls.__dependencies__ = (
-                dependencies or []
-            )  # Cannot use set because we need to maintain order
-            cls.__options__ = options or []
 
-            if not hasattr(cls, "get_blok_name"):
-                cls.get_blok_name = classmethod(
-                    lambda cls: blok_name or cls.__name__.lower().replace("blok", "")
-                )
-            else:
-                assert isinstance(
-                    getattr(cls, "get_blok_name"), classmethod
-                ), "get_blok_name must be a class method"
 
-            if not hasattr(cls, "get_identifier"):
-                cls.get_identifier = classmethod(lambda cls: cls.__service_identifier__)
+            if not hasattr(cls, "get_options"):
+                cls.get_options = lambda self: self.__blok_options__
 
             if not hasattr(cls, "preflight"):
                 cls.preflight = lambda self, context: None
@@ -182,23 +225,24 @@ def blok(
                     init_function, dependency_mapper
                 )
                 for i in init_dependencies:
-                    if i not in cls.__dependencies__:
-                        cls.__dependencies__.append(i)
+                    if i not in initial_blok_meta.dependencies:
+                        initial_blok_meta.dependencies.append(i)
 
-            if not hasattr(cls, "get_identifier"):
-                cls.get_identifier = classmethod(lambda cls: cls.__service_identifier__)
-
-            if not hasattr(cls, "get_dependencies"):
-                cls.get_dependencies = lambda cls: cls.__dependencies__
-
-            if not hasattr(cls, "get_options"):
-                cls.get_options = lambda cls: cls.__options__
+            if not hasattr(cls, "get_blok_meta"):
+                cls.get_blok_meta = classmethod(lambda cls: initial_blok_meta)
+            else:
+                assert isinstance(
+                    getattr(cls, "get_blok_meta"), classmethod
+                ), "get_blok_meta must be a class method"
 
             if not hasattr(cls, "entry"):
                 cls.entry = lambda self, renderer: None
 
             if not hasattr(cls, "build"):
                 cls.build = lambda self, context: None
+
+            if not hasattr(cls, "get_options"):
+                cls.get_options = lambda self: self.__blok_options__
 
             if isinstance(service_identifier, str):
                 pass

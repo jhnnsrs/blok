@@ -63,11 +63,14 @@ def compare_structures(old_structure, new_structure, path=""):
         elif isinstance(old_value, dict) and isinstance(new_value, dict):
             diffs.extend(compare_structures(old_value, new_value, path + "/" + key))
 
-        elif isinstance(old_value, (list, tuple)) and isinstance(new_value, (list, tuple)):
+        elif isinstance(old_value, (list, tuple)) and isinstance(
+            new_value, (list, tuple)
+        ):
             if len(old_value) != len(new_value):
                 diffs.append(
                     ListChangedDiff(
-                        path + "/" + key, f"Length mismatch: {len(old_value)} != {len(new_value)}"
+                        path + "/" + key,
+                        f"Length mismatch: {len(old_value)} != {len(new_value)}",
                     )
                 )
 

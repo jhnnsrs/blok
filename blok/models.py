@@ -12,7 +12,6 @@ class Option:
     hide_input: bool = False
     is_flag: t.Optional[bool] = None
     flag_value: t.Optional[t.Any] = None
-    multiple: bool = False
     count: bool = False
     allow_from_autoenv: bool = True
     help: t.Optional[str] = None

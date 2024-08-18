@@ -12,7 +12,6 @@ from blok.renderer import Renderer
 def configure(config_file_name: str, ctx, param, filename):
     """Configures the context with the default map"""
     config_path = Path(filename) / config_file_name
-    print(config_path)
 
     try:
         with open(config_path, "r") as f:
@@ -65,6 +64,13 @@ def wrap_builder(
         type=str,
         default=lambda: list(),
         multiple=True,
+    )(func)
+    func = click.option(
+        "--run",
+        "-r",
+        type=bool,
+        default=False,
+        multiple=False,
     )(func)
 
     func = click.command()(func)

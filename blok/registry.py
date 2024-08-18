@@ -32,6 +32,7 @@ class BlokRegistry:
         self.bloks: t.Dict[str, Blok] = {}
         self.dependency_resolver = {}
         self.strict = strict
+        self.meta = {}
 
     def load_modules(self, modules: t.List[str]):
         for module in modules:
@@ -56,17 +57,22 @@ class BlokRegistry:
 
     def add_blok(self, blok: Blok):
         check_protocol_compliance(blok, Blok)
-        if blok.get_blok_name() in self.bloks:
+        meta = blok.get_blok_meta()
+
+        if meta.name in self.bloks:
             if self.strict:
                 raise KeyError(
-                    f"Blok {blok.get_blok_name()} already exists. Cannot register it twice. Choose a different name."
+                    f"Blok {meta.name} already exists. Cannot register it twice. Choose a different name."
                 )
         else:
-            self.dependency_resolver.setdefault(blok.get_identifier(), []).append(
-                blok.get_blok_name()
+            self.dependency_resolver.setdefault(meta.service_identifier, []).append(
+                meta.name
             )
 
-        self.bloks[blok.get_blok_name()] = blok
+
+        self.meta[meta.name] = meta
+
+        self.bloks[meta.name] = blok
 
     def get_module_name(self, identifier):
         return self.dependency_resolver[identifier]

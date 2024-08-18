@@ -17,7 +17,7 @@ def create_dependency_resolutions_pane(dep_map: Dict[str, Blok]):
     tree = Tree("Dependency Resolutions")
 
     for key, value in dep_map.items():
-        tree.add(f"[bold]{key}[/bold] resolved to {value.get_blok_name()}")
+        tree.add(f"[bold]{key}[/bold] resolved to {value.get_blok_meta().name}")
 
     return Panel(
         tree,
