@@ -58,6 +58,10 @@ def traverse_command_tree(nested: NestedDict):
             yield key, asdict(value)
 
 
+def dep_depth(dep: list[Dependency]):
+    return " -> ".join([x.service for x in dep])
+
+
 def initialize_blok_with_dependencies(
     blok: Blok,
     registry: BlokRegistry,
@@ -68,7 +72,6 @@ def initialize_blok_with_dependencies(
     with_optionals: list | None = None,
     run=False,
     interactive: bool = True,
-
 ):
     """
     Given a blok name, initialize the necessary modules including its dependencies.
@@ -78,27 +81,10 @@ def initialize_blok_with_dependencies(
     initialied_bloks = OrderedDict()
     chosen_optionals = set()
 
-    def initialize_service_as_blok_recursive(dep: Dependency, causing_blok: Blok):
+    def initialize_service_as_blok_recursive(
+        dep: Dependency, causing_blok: Blok, depth
+    ):
         service_name = dep.service
-        is_optional = dep.optional
-        if is_optional:
-            # If we have provided a list of optionals and this is not in the list, we skip
-            if run:
-                if service_name not in with_optionals:
-                    return
-                else:
-                    chosen_optionals.add(service_name)
-                    pass      
-            else:
-                # If we have not provided a list of optionals, we ask the user
-                if not renderer.confirm(f"{causing_blok.get_blok_meta().name} can optional use  {service_name} {dep.description if dep.description else ''}: Would you like to initialize it?"):
-                    
-                    return
-                
-                chosen_optionals.add(service_name)
-
-        if service_name in initialied_bloks:
-            return
 
         try:
             potential_bloks = registry.get_bloks_for_dependency(service_name)
@@ -121,8 +107,16 @@ def initialize_blok_with_dependencies(
                 questions = [
                     inquirer.List(
                         "blok",
-                        message=f"Which blok would you like to resolve {service_name}",
-                        choices=[x.get_blok_meta().name for x in filtered_bloks],
+                        message=f"{dep_depth(depth)} : Blok {causing_blok.get_blok_meta().name} requires {service_name} ({dep.description}): Which blok would you like to use?",
+                        choices=[
+                            (x.get_blok_meta().name, x.get_blok_meta().name)
+                            if not x.get_blok_meta().description
+                            else (
+                                f"{x.get_blok_meta().name} - {x.get_blok_meta().description}",
+                                x.get_blok_meta().name,
+                            )
+                            for x in filtered_bloks
+                        ],
                     ),
                 ]
                 answers = inquirer.prompt(questions)
@@ -145,11 +139,64 @@ def initialize_blok_with_dependencies(
 
         initialied_bloks[service_name] = chosen_blok
 
-        for dependency in get_cleartext_deps(chosen_blok):
-            initialize_service_as_blok_recursive(dependency, chosen_blok)
+        optional_deps = [
+            x
+            for x in get_cleartext_deps(chosen_blok)
+            if x.optional and x.service not in initialied_bloks
+        ]
+        required_deps = [
+            x
+            for x in get_cleartext_deps(chosen_blok)
+            if not x.optional and x.service not in initialied_bloks
+        ]
+        chosen_optional_deps = []
+
+        if run:
+            chosen_optional_deps = [
+                i
+                for i in get_cleartext_deps(chosen_blok)
+                if i.service in with_optionals
+            ]
+        else:
+            if optional_deps:
+                questions = [
+                    inquirer.Checkbox(
+                        "blok",
+                        message=f"{dep_depth(depth)} : Blok {chosen_blok.get_blok_meta().name} has optional dependencies. Which once would you like to include?",
+                        choices=[
+                            (x.service, x.service)
+                            if not x.description
+                            else (f"{x.service} - {x.description}", x.service)
+                            for x in optional_deps
+                        ],
+                        default=[x.service for x in optional_deps if x.default],
+                    )
+                ]
+                answers = inquirer.prompt(questions)
+
+                if answers:
+                    chosen_optional_deps = [
+                        i
+                        for i in get_cleartext_deps(chosen_blok)
+                        if i.service in answers["blok"]
+                    ]
+                else:
+                    chosen_optional_deps = [
+                        i for i in get_cleartext_deps(chosen_blok) if i.optional
+                    ]
+
+        to_be_initialized_deps = required_deps + chosen_optional_deps
+        for i in chosen_optional_deps:
+            chosen_optionals.add(i.service)
+
+        for dependency in to_be_initialized_deps:
+            initialize_service_as_blok_recursive(
+                dependency, chosen_blok, depth=depth + [dependency]
+            )
 
         blok_dependencies = {
-            dep.service: initialied_bloks[dep.service] for dep in get_cleartext_deps(chosen_blok)
+            dep.service: initialied_bloks[dep.service]
+            for dep in get_cleartext_deps(chosen_blok)
         }
 
         try:
@@ -166,10 +213,58 @@ def initialize_blok_with_dependencies(
                 f"Failed to initialize blok {chosen_blok.get_blok_meta().name}"
             ) from e
 
-    for dep in get_cleartext_deps(blok):
-        initialize_service_as_blok_recursive(dep, blok)
+    chosen_blok = blok
 
-    blok_dependencies = {dep.service: initialied_bloks[key.service] for key in get_cleartext_deps(blok)}
+    optional_deps = [x for x in get_cleartext_deps(chosen_blok) if x.optional]
+    required_deps = [x for x in get_cleartext_deps(chosen_blok) if not x.optional]
+    chosen_optional_deps = []
+
+    if run:
+        chosen_optional_deps = [
+            i for i in get_cleartext_deps(chosen_blok) if i.service in with_optionals
+        ]
+    else:
+        if optional_deps:
+            questions = [
+                inquirer.Checkbox(
+                    "blok",
+                    message=f"Which optional dependencies would you like to have for {chosen_blok.get_blok_meta().name}",
+                    choices=[
+                        (x.service, x.service)
+                        if not x.description
+                        else (f"{x.service} - {x.description}", x.service)
+                        for x in optional_deps
+                    ],
+                    default=[x.service for x in optional_deps if x.default],
+                )
+            ]
+            answers = inquirer.prompt(questions)
+
+            if answers:
+                chosen_optional_deps = [
+                    i
+                    for i in get_cleartext_deps(chosen_blok)
+                    if i.service in answers["blok"]
+                ]
+            else:
+                chosen_optional_deps = [
+                    i for i in get_cleartext_deps(chosen_blok) if i.optional
+                ]
+
+    to_be_initialized_deps = required_deps + chosen_optional_deps
+    for i in chosen_optional_deps:
+        chosen_optionals.add(i.service)
+
+    for dependency in to_be_initialized_deps:
+        initialize_service_as_blok_recursive(
+            dependency, chosen_blok, depth=[dependency]
+        )
+
+    blok_dependencies = {
+        dep.service: initialied_bloks[dep.service]
+        for dep in get_cleartext_deps(blok)
+        if dep.service in initialied_bloks
+    }
     try:
         blok.preflight(
             InitContext(
@@ -198,16 +293,21 @@ def entrypoint(
 
         discard_bloks = kwargs.pop("discard_bloks", None)
         prefer_bloks = kwargs.pop("use_bloks", None)
-        print(prefer_bloks)
         run = kwargs.pop("run", False)
-        print(run)
+        print("Has run", run)
         with_optionals = kwargs.pop("with_optionals", None)
-        print(with_optionals)
 
         blok = registry.get_blok(blok_name)
         blok.entry(renderer)
         initialized, chosen_optionals = initialize_blok_with_dependencies(
-            blok, registry, renderer, discard_bloks, prefer_bloks, kwargs, with_optionals, run
+            blok,
+            registry,
+            renderer,
+            discard_bloks,
+            prefer_bloks,
+            kwargs,
+            with_optionals,
+            run,
         )
 
         pane = create_dependency_resolutions_pane(initialized)
@@ -217,8 +317,7 @@ def entrypoint(
         kwargs["use_bloks"] = [
             blok.get_blok_meta().name for blok in initialized.values()
         ]
-        print(chosen_optionals)
-        kwargs["with_optionals"] = list(chosen_optionals)
+        kwargs["with_optionals"] = sorted(list(chosen_optionals), key=lambda x: x)
         kwargs["run"] = True
 
         files = {}
@@ -271,7 +370,7 @@ def entrypoint(
             "initialized_order": list(
                 i.get_blok_meta().name for i in initialized.values()
             ),
-            "with_optionals": list(chosen_optionals),
+            "with_optionals": sorted(list(chosen_optionals), key=lambda x: x),
             "install_commands": dict(traverse_command_tree(context.install_commands)),
             "up_commands": dict(traverse_command_tree(context.up_commands)),
         }
@@ -303,7 +402,9 @@ def entrypoint(
             with open(docker_compose_file_path, "w") as f:
                 yaml.dump(compose_dict, f, yaml.SafeDumper, indent=3)
 
-            renderer.print(f"Generated docker-compose file at {docker_compose_file_path}")
+            renderer.print(
+                f"Generated docker-compose file at {docker_compose_file_path}"
+            )
 
             # Generate file tree
 

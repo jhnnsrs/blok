@@ -13,6 +13,7 @@ from blok.tree.models import JSONFile
 
 @blok(
     VsCodeService,
+    description="A blok for setting up a vscode workspace",
     options=[Option("with_docker", help="Have a docker up command", default=True)],
 )
 class VsCodeBlok:

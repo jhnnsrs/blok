@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Set
 
 
-@service("io.blok.vscode")
+@service("io.blok.codespace", description="A blok for setting up a codespace")
 class VsCodeService(Protocol):
     def register_task() -> None:
         pass

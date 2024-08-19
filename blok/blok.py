@@ -55,6 +55,7 @@ class Dependency:
     service: str
     optional: bool = False
     description: Optional[str] = None
+    default: bool = True
 
 
 @dataclass
@@ -87,7 +88,6 @@ def is_optional_type(annotation):
         return False
 
 
-
 def inspect_dependable_params(function):
     signature = inspect.signature(function)
     parameters = signature.parameters
@@ -105,7 +105,7 @@ def inspect_dependable_params(function):
             if param.annotation == InitContext:
                 dependency_mapper["__context__"] = name
                 continue
-                
+
             if is_optional_type(param.annotation):
                 cls = next(i for i in get_args(param.annotation) if i != type(None))
                 is_optional = True
@@ -113,14 +113,25 @@ def inspect_dependable_params(function):
                 cls = param.annotation
                 is_optional = False
 
-
             if hasattr(cls, "get_blok_service_meta"):
-                dependencies.append(Dependency(service=cls.get_blok_service_meta().identifier, optional=is_optional))
+                dependencies.append(
+                    Dependency(
+                        service=cls.get_blok_service_meta().identifier,
+                        optional=is_optional,
+                        description=cls.get_blok_service_meta().description,
+                    )
+                )
                 dependency_mapper[cls.get_blok_service_meta().identifier] = name
                 continue
 
             if hasattr(cls, "get_blok_meta"):
-                dependencies.append(Dependency(service=cls.get_blok_meta().service_identifier, optional=is_optional))
+                dependencies.append(
+                    Dependency(
+                        service=cls.get_blok_meta().service_identifier,
+                        optional=is_optional,
+                        description=cls.get_blok_meta().description,
+                    )
+                )
                 dependency_mapper[cls.get_blok_meta().service_identifier] = name
                 continue
 
@@ -144,7 +155,6 @@ def service(service_identifier: t.Union[str, Service]):
         return cls
 
     return decorator
-
 
 
 def build_mapped_preflight_function(preflight_function, dependency_mapper):
@@ -184,6 +194,7 @@ def convert_to_dependency(dependency):
     else:
         raise ValueError("Dependency must be a string or a Dependency object")
 
+
 def blok(
     service_identifier: t.Union[str, Service],
     blok_name: t.Optional[str] = None,
@@ -202,14 +213,15 @@ def blok(
                 else service_identifier.get_blok_service_meta().identifier
             ),
             tags=tags or [],
-            dependencies=[convert_to_dependency(i) for i in dependencies] if dependencies else [],
+            dependencies=[convert_to_dependency(i) for i in dependencies]
+            if dependencies
+            else [],
         )
 
         try:
             cls.__blok_meta__ = initial_blok_meta
             cls.__blok_options__ = options or []
             cls.__is_blok__ = True
-
 
             if not hasattr(cls, "get_options"):
                 cls.get_options = lambda self: self.__blok_options__
