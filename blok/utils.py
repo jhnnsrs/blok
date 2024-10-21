@@ -91,5 +91,4 @@ def get_cleartext_deps(blok):
     dependencies = blok.get_blok_meta().dependencies
     cleartext_deps = []
 
-
     return dependencies

@@ -213,9 +213,9 @@ def blok(
                 else service_identifier.get_blok_service_meta().identifier
             ),
             tags=tags or [],
-            dependencies=[convert_to_dependency(i) for i in dependencies]
-            if dependencies
-            else [],
+            dependencies=(
+                [convert_to_dependency(i) for i in dependencies] if dependencies else []
+            ),
         )
 
         try:

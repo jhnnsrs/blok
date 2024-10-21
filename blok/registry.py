@@ -69,7 +69,6 @@ class BlokRegistry:
                 meta.name
             )
 
-
         self.meta[meta.name] = meta
 
         self.bloks[meta.name] = blok

@@ -109,11 +109,13 @@ def initialize_blok_with_dependencies(
                         "blok",
                         message=f"{dep_depth(depth)} : Blok {causing_blok.get_blok_meta().name} requires {service_name} ({dep.description}): Which blok would you like to use?",
                         choices=[
-                            (x.get_blok_meta().name, x.get_blok_meta().name)
-                            if not x.get_blok_meta().description
-                            else (
-                                f"{x.get_blok_meta().name} - {x.get_blok_meta().description}",
-                                x.get_blok_meta().name,
+                            (
+                                (x.get_blok_meta().name, x.get_blok_meta().name)
+                                if not x.get_blok_meta().description
+                                else (
+                                    f"{x.get_blok_meta().name} - {x.get_blok_meta().description}",
+                                    x.get_blok_meta().name,
+                                )
                             )
                             for x in filtered_bloks
                         ],
@@ -164,9 +166,11 @@ def initialize_blok_with_dependencies(
                         "blok",
                         message=f"{dep_depth(depth)} : Blok {chosen_blok.get_blok_meta().name} has optional dependencies. Which once would you like to include?",
                         choices=[
-                            (x.service, x.service)
-                            if not x.description
-                            else (f"{x.service} - {x.description}", x.service)
+                            (
+                                (x.service, x.service)
+                                if not x.description
+                                else (f"{x.service} - {x.description}", x.service)
+                            )
                             for x in optional_deps
                         ],
                         default=[x.service for x in optional_deps if x.default],
@@ -230,9 +234,11 @@ def initialize_blok_with_dependencies(
                     "blok",
                     message=f"Which optional dependencies would you like to have for {chosen_blok.get_blok_meta().name}",
                     choices=[
-                        (x.service, x.service)
-                        if not x.description
-                        else (f"{x.service} - {x.description}", x.service)
+                        (
+                            (x.service, x.service)
+                            if not x.description
+                            else (f"{x.service} - {x.description}", x.service)
+                        )
                         for x in optional_deps
                     ],
                     default=[x.service for x in optional_deps if x.default],
