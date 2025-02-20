@@ -15,7 +15,7 @@ Welcome to blok! A tool for building and managing docker-compose projects.
 
 Blok utilized your locally installed projects to build and manage docker-compose projects.
 Projects can register bloks into the blok registry using the __blok__ magic method.
-For more information, visit [link=https://arkitekt.live/bloks]https://arkitekt_next.live/bloks[/link]
+For more information, visit [link=https://arkitekt.live/bloks]https://arkitekt.live/bloks[/link]
 
 """
 

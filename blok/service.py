@@ -2,6 +2,8 @@ from typing import List, runtime_checkable, Protocol
 import typing as t
 from dataclasses import dataclass
 
+from blok.dependency import Dependency
+
 
 @dataclass
 class ServiceMeta:
@@ -26,6 +28,14 @@ def service(
 
         if not hasattr(cls, "get_blok_service_meta"):
             cls.get_blok_service_meta = classmethod(lambda self: self.__blok_meta__)
+
+        if not hasattr(cls, "as_dependency"):
+            cls.as_dependency = lambda optional, default: Dependency(
+                service=cls.__blok_meta__.identifier,
+                optional=optional,
+                description=cls.__blok_meta__.description,
+                default=default,
+            )
 
         try:
             return runtime_checkable(cls)

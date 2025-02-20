@@ -80,6 +80,7 @@ def initialize_blok_with_dependencies(
     """
     initialied_bloks = OrderedDict()
     chosen_optionals = set()
+    denied_optionals = set()
 
     def initialize_service_as_blok_recursive(
         dep: Dependency, causing_blok: Blok, depth
@@ -144,7 +145,9 @@ def initialize_blok_with_dependencies(
         optional_deps = [
             x
             for x in get_cleartext_deps(chosen_blok)
-            if x.optional and x.service not in initialied_bloks
+            if x.optional
+            and x.service not in initialied_bloks
+            and x.service not in denied_optionals
         ]
         required_deps = [
             x
@@ -194,14 +197,21 @@ def initialize_blok_with_dependencies(
             chosen_optionals.add(i.service)
 
         for dependency in to_be_initialized_deps:
+            if dependency.service in initialied_bloks:
+                continue
+
             initialize_service_as_blok_recursive(
                 dependency, chosen_blok, depth=depth + [dependency]
             )
 
-        blok_dependencies = {
-            dep.service: initialied_bloks[dep.service]
-            for dep in get_cleartext_deps(chosen_blok)
-        }
+        blok_dependencies = {}
+
+        for dep in get_cleartext_deps(chosen_blok):
+            if dep.service in initialied_bloks:
+                blok_dependencies[dep.service] = initialied_bloks[dep.service]
+            else:
+                assert dep.optional, f"Dependency {dep.service} is not optional"
+                blok_dependencies[dep.service] = None
 
         try:
             chosen_blok.preflight(
@@ -222,6 +232,7 @@ def initialize_blok_with_dependencies(
     optional_deps = [x for x in get_cleartext_deps(chosen_blok) if x.optional]
     required_deps = [x for x in get_cleartext_deps(chosen_blok) if not x.optional]
     chosen_optional_deps = []
+    denied_optional_deps = []
 
     if run:
         chosen_optional_deps = [
@@ -252,14 +263,22 @@ def initialize_blok_with_dependencies(
                     for i in get_cleartext_deps(chosen_blok)
                     if i.service in answers["blok"]
                 ]
-            else:
-                chosen_optional_deps = [
-                    i for i in get_cleartext_deps(chosen_blok) if i.optional
+
+                denied_optional_deps = [
+                    i
+                    for i in get_cleartext_deps(chosen_blok)
+                    if i.service not in answers["blok"]
                 ]
+
+            else:
+                raise click.ClickException("User cancelled")
 
     to_be_initialized_deps = required_deps + chosen_optional_deps
     for i in chosen_optional_deps:
         chosen_optionals.add(i.service)
+
+    for i in denied_optional_deps:
+        denied_optionals.add(i.service)
 
     for dependency in to_be_initialized_deps:
         initialize_service_as_blok_recursive(
@@ -300,8 +319,9 @@ def entrypoint(
         discard_bloks = kwargs.pop("discard_bloks", None)
         prefer_bloks = kwargs.pop("use_bloks", None)
         run = kwargs.pop("run", False)
-        print("Has run", run)
         with_optionals = kwargs.pop("with_optionals", None)
+
+        renderer.print(f"Welcome to blok: Potential Blok intialization in {path}")
 
         blok = registry.get_blok(blok_name)
         blok.entry(renderer)
@@ -340,7 +360,7 @@ def entrypoint(
                 service.build(context)
             except Exception as e:
                 raise BlokInitializationError(
-                    f"Failed to initialize blok {blok.get_blok_name()} for service {key}"
+                    f"Failed to initialize blok {blok.get_blok_meta().name} for service {key}"
                 ) from e
 
             # TODO: Validate context?
@@ -350,7 +370,7 @@ def entrypoint(
             blok.build(context)
         except Exception as e:
             raise BlokInitializationError(
-                f"Failed to initialize blok {blok.get_blok_name()} for service {key}"
+                f"Failed to initialize blok {blok.get_blok_meta().name} for service {key}"
             ) from e
 
         # This would generate this are you okay?
@@ -417,12 +437,12 @@ def entrypoint(
             # Generate files and folders
             create_files_and_folders(Path(path), context.file_tree)
 
-        with open(Path(path) / blok_file_name, "w") as f:
-            yaml.dump(
-                new_yaml_body,
-                f,
-                yaml.SafeDumper,
-            )
+            with open(Path(path) / blok_file_name, "w") as f:
+                yaml.dump(
+                    new_yaml_body,
+                    f,
+                    yaml.SafeDumper,
+                )
 
     except Exception as e:
         print(traceback.format_exc())

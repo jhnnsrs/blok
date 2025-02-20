@@ -8,7 +8,7 @@ import inspect
 from typing import Optional, get_args, Union
 
 from blok.utils import check_service_compliance
-
+from blok.dependency import Dependency
 
 T = t.TypeVar("T")
 
@@ -51,20 +51,19 @@ class ExecutionContext:
 
 
 @dataclass
-class Dependency:
-    service: str
-    optional: bool = False
-    description: Optional[str] = None
-    default: bool = True
-
-
-@dataclass
 class BlokMeta:
     name: str
     description: str
     service_identifier: str
     tags: List[str]
     dependencies: List[Dependency]
+
+
+@dataclass
+class ServiceMeta:
+    name: str
+    description: str
+    service_identifier: str
 
 
 @runtime_checkable
@@ -140,23 +139,6 @@ def inspect_dependable_params(function):
     return dependencies, dependency_mapper
 
 
-def service(service_identifier: t.Union[str, Service]):
-    def decorator(cls):
-        cls.__service_identifier__ = (
-            service_identifier
-            if isinstance(service_identifier, str)
-            else service_identifier.get_identifier()
-        )
-        cls.__is_service__ = True
-
-        if not hasattr(cls, "get_identifier"):
-            cls.get_identifier = classmethod(lambda self: self.__service_identifier__)
-
-        return cls
-
-    return decorator
-
-
 def build_mapped_preflight_function(preflight_function, dependency_mapper):
     def mapped_preflight_function(self, context):
         kwargs = {}
@@ -188,7 +170,7 @@ def build_mapped_preflight_function(preflight_function, dependency_mapper):
 
 def convert_to_dependency(dependency):
     if isinstance(dependency, str):
-        return Dependency(service=dependency)
+        return Dependency(service=dependency, key=dependency)
     elif isinstance(dependency, Dependency):
         return dependency
     else:
@@ -230,14 +212,19 @@ def blok(
                 cls.preflight = lambda self, context: None
             else:
                 init_function = getattr(cls, "preflight")
-                init_dependencies, dependency_mapper = inspect_dependable_params(
+                preflight_dependencies, dependency_mapper = inspect_dependable_params(
                     init_function
                 )
                 cls.preflight = build_mapped_preflight_function(
                     init_function, dependency_mapper
                 )
-                for i in init_dependencies:
-                    if i not in initial_blok_meta.dependencies:
+
+                already_key_dependencies = [
+                    i.service for i in initial_blok_meta.dependencies
+                ]
+
+                for i in preflight_dependencies:
+                    if i.service not in already_key_dependencies:
                         initial_blok_meta.dependencies.append(i)
 
             if not hasattr(cls, "get_blok_meta"):
@@ -255,6 +242,14 @@ def blok(
 
             if not hasattr(cls, "get_options"):
                 cls.get_options = lambda self: self.__blok_options__
+
+            if not hasattr(cls, "as_dependency"):
+                cls.as_dependency = lambda optional, default: Dependency(
+                    service=cls.__blok_meta__.service_identifier,
+                    optional=optional,
+                    description=cls.__blok_meta__.description,
+                    default=default,
+                )
 
             if isinstance(service_identifier, str):
                 pass
