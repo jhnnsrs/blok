@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "blok"
-version = "0.0.22"
+version = "0.1.0"
 description = ""
 authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
 readme = "README.md"
